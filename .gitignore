@@ -1,0 +1,18 @@
+# ENV
+.env
+
+# PYTHON
+venv/
+__pycache__/
+*.pyc
+
+# AI MODELS
+.cache/
+~/.cache/
+*.pt
+
+# LOGS
+*.log
+
+# OS
+.DS_Store
