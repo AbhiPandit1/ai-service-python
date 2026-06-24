@@ -21,10 +21,15 @@ RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu 
 COPY requirements-docker.txt .
 RUN pip install --no-cache-dir -r requirements-docker.txt
 
-# App code + YOLO weights (object_detector loads ./yolov8n.pt at import time)
+# Pre-fetch the YOLO weights at build time. The model is gitignored (*.pt), so
+# it isn't in the build context; ultralytics downloads it into WORKDIR (/app),
+# where object_detector.py loads ./yolov8n.pt at import time. Baking it in also
+# avoids a cold-start download on the first request.
+RUN python -c "from ultralytics import YOLO; YOLO('yolov8n.pt')"
+
+# App code
 COPY main.py .
 COPY app ./app
-COPY yolov8n.pt .
 
 EXPOSE 8000
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
