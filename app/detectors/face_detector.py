@@ -2,20 +2,14 @@ import mediapipe as mp
 import cv2
 
 _detector = None
-
 def get_detector():
     global _detector
     if _detector is None:
-        print("⏳ Loading face detector...")
+        print("Loading face detector...")
         _detector = mp.solutions.face_detection.FaceDetection(0.7)
-        print("✅ Face detector loaded")
+        print("Face detector loaded")
     return _detector
 
-
 def detect_face(image):
-
-    detector = get_detector()
-
-    result = detector.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-
+    result = get_detector().process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
     return bool(result.detections)

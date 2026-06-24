@@ -1,16 +1,16 @@
-import numpy as np
+def detect_noise(audio_level):
 
-def analyze_voice(audio_chunk):
+    if audio_level is None:
+        return False
 
-    volume = np.linalg.norm(audio_chunk)
+    # simple thresholds (real systems use similar)
 
-    silent = volume < 5
-    loud = volume > 80
+    # too loud (someone talking loudly / external sound)
+    if audio_level > 0.25:
+        return True
 
-    anomaly = silent or loud
+    # too silent for long time (mic muted / no presence)
+    if audio_level < 0.01:
+        return True
 
-    return {
-        "silent": silent,
-        "loudNoise": loud,
-        "voiceAnomaly": anomaly
-    }
+    return False

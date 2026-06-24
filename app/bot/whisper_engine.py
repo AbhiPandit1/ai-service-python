@@ -3,48 +3,60 @@ import numpy as np
 import tempfile
 import soundfile as sf
 import os
-import torch
 
-HF_MODEL_PATH = os.path.expanduser("~/.cache/whisper/tiny.pt")
+# ===============================
+# Load model once (startup)
+# ===============================
 
 _model = None
+
 
 def get_model():
     global _model
 
     if _model is None:
-        print("🚀 Loading Whisper tiny from local file...")
+        print("🚀 Loading Whisper tiny model (cached)...")
 
-        _model = whisper.load_model(
-            "tiny",
-            download_root=None,
-            in_memory=False
-        )
+        # This automatically uses ~/.cache/whisper/tiny.pt
+        _model = whisper.load_model("tiny")
 
-        # Force load weights manually
-        state = torch.load(HF_MODEL_PATH, map_location="cpu")
-        _model.load_state_dict(state)
-
-        print("✅ Whisper loaded from local cache")
+        print("✅ Whisper ready")
 
     return _model
 
 
-def transcribe_audio(pcm_bytes):
+# ===============================
+# Transcription function
+# ===============================
 
+def transcribe_audio(pcm_bytes: bytes) -> str:
+    """
+    pcm_bytes: raw 16-bit PCM audio bytes @ 16kHz
+    returns transcribed text
+    """
+
+    # Convert PCM → float32 waveform
     audio = np.frombuffer(pcm_bytes, np.int16).astype("float32") / 32768.0
 
+    # Write temp wav (Whisper expects file input)
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
         sf.write(f.name, audio, 16000)
         path = f.name
 
-    model = get_model()
+    try:
+        model = get_model()
 
-    result = model.transcribe(path, fp16=False)
+        result = model.transcribe(
+            path,
+            fp16=False,      # CPU safe
+            language="en"
+        )
 
-    os.remove(path)
+        return result.get("text", "").strip()
 
-    return result["text"].strip()
+    finally:
+        if os.path.exists(path):
+            os.remove(path)
 
 
 ###cd video-interview-platform/ai-service

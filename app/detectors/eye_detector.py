@@ -1,22 +1,18 @@
 import cv2
 import mediapipe as mp
 
-mp_mesh = mp.solutions.face_mesh
-mesh = mp_mesh.FaceMesh(refine_landmarks=True)
+_mesh = None
+def _get_mesh():
+    global _mesh
+    if _mesh is None:
+        _mesh = mp.solutions.face_mesh.FaceMesh(refine_landmarks=True)
+    return _mesh
 
 def detect_eye(image):
-
     rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    res = mesh.process(rgb)
-
-    away = False
-
+    res = _get_mesh().process(rgb)
     if res.multi_face_landmarks:
         lm = res.multi_face_landmarks[0].landmark
-        left = lm[33]
-        right = lm[263]
-
-        if abs(left.x - right.x) < 0.12:
-            away = True
-
-    return away
+        if abs(lm[33].x - lm[263].x) < 0.12:
+            return True
+    return False

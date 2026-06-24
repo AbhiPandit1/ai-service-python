@@ -1,46 +1,109 @@
-from app.detectors.face_detector import detect_face
-from app.detectors.multi_face import detect_multi
-from app.detectors.eye_detector import detect_eye
-from app.detectors.head_pose import estimate_head_pose
+import cv2
 import numpy as np
 
+from app.detectors.multi_face import detect_multi_face
+from app.detectors.eye_tracker import is_looking_away
+from app.detectors.head_pose import get_head_pose
+from app.detectors.voice_detector import detect_noise
+from app.detectors.object_detector import detect_objects
 
-def to_bool(val):
-    if isinstance(val, (list, tuple, np.ndarray)):
-        return len(val) > 0
-    return bool(val)
+
+def analyze_frame(image_bytes, audio_level=None):
+
+    # =======================
+    # Decode frame
+    # =======================
+
+    npimg = np.frombuffer(image_bytes, np.uint8)
+    frame = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
+
+    if frame is None:
+        events = {
+            "faceCount": 0,
+            "presence": False,
+            "multipleFace": False,
+            "lookingAway": False,
+            "headTurn": False,
+            "noise": False,
+            "phoneDetected": False,
+            "bookDetected": False,
+            "extraPerson": False
+        }
+
+        print("📸 PROCTOR EVENT >>>", events)
+        return events
 
 
-def analyze(frame):
+    # =======================
+    # FACE COUNT
+    # =======================
 
-    face_raw = detect_face(frame)
-    multi_raw = detect_multi(frame)
-    eyes_raw = detect_eye(frame)
-    pose_raw = estimate_head_pose(frame)
+    face_count = detect_multi_face(frame)
 
-    face = to_bool(face_raw)
-    multi = to_bool(multi_raw)
-    eyes = to_bool(eyes_raw)
-    pose = to_bool(pose_raw)
+    presence = face_count > 0
+    multiple_face = face_count > 1
 
-    cheating = 0
 
-    if not face:
-        cheating += 40
+    # =======================
+    # EYES
+    # =======================
 
-    if multi:
-        cheating += 40
+    looking_away = False
+    if face_count >= 1:
+        looking_away = is_looking_away(frame)
 
-    if eyes:
-        cheating += 10
 
-    if pose:
-        cheating += 10
+    # =======================
+    # HEAD POSE
+    # =======================
 
-    return {
-        "faceDetected": face,
-        "multipleFaces": multi,
-        "eyesAway": eyes,
-        "headPose": pose,
-        "cheatingScore": cheating
+    head_turn = False
+    if face_count >= 1:
+        pose = get_head_pose(frame)
+        head_turn = pose in ["LEFT", "RIGHT", "DOWN"]
+
+
+    # =======================
+    # AUDIO
+    # =======================
+
+    noise = False
+    if audio_level is not None:
+        noise = detect_noise(audio_level)
+
+
+    # =======================
+    # OBJECT DETECTION (YOLO)
+    # =======================
+
+    objects = detect_objects(frame)
+
+    extra_person = objects["personCount"] > 1
+
+
+    # =======================
+    # FINAL EVENTS
+    # =======================
+
+    events = {
+        "faceCount": int(face_count),
+        "presence": presence,
+        "multipleFace": multiple_face,
+        "lookingAway": bool(looking_away),
+        "headTurn": bool(head_turn),
+        "noise": bool(noise),
+
+        "extraPerson": extra_person,
+
+        "phoneDetected": objects["phoneDetected"],
+        "phoneConfidence": objects["phoneConfidence"],
+
+        "bookDetected": objects["bookDetected"],
+        "bookConfidence": objects["bookConfidence"],
+
+        "laptopDetected": objects["laptopDetected"]
     }
+
+    print("📸 PROCTOR EVENT >>>", events)
+
+    return events

@@ -1,31 +1,47 @@
-from fastapi import FastAPI, UploadFile, File, WebSocket
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 
-from app.core.websocket import proctor_socket
+from app.core.analyzer import analyze_frame
 
 app = FastAPI()
 
 
-# ===============================
-# Optional HTTP frame analyze
-# (not used in live flow anymore)
-# ===============================
+# ================= CORS =================
 
-@app.post("/analyze-frame")
-async def analyze(file: UploadFile = File(...)):
-
-    # Lazy import (prevents startup freeze)
-    from app.snapshot.capture import process_frame  
-
-    data = await file.read()
-
-    return process_frame(data)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
-# ===============================
-# WebSocket (main flow)
-# ===============================
+# ================= HEALTH =================
 
-@app.websocket("/ws/proctor")
-async def ws_endpoint(ws: WebSocket):
+@app.get("/")
+def root():
+    return {"status": "AI Proctor running"}
 
-    await proctor_socket(ws)
+@app.get("/health")
+def health():
+    return {"status": "ok", "service": "proctor-api"}
+
+
+# ================= ANALYZE =================
+
+@app.post("/analyze")
+async def analyze(request: Request):
+
+    audio_level = request.query_params.get("audio")
+
+    if audio_level is not None:
+        try:
+            audio_level = float(audio_level)
+        except:
+            audio_level = None
+
+    image_bytes = await request.body()
+
+    result = analyze_frame(image_bytes, audio_level)
+
+    return result
